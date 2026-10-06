@@ -55,7 +55,8 @@ fi
 
 : "${GITHUB_REPOSITORY:?}" "${PR_NUMBER:?not a pull_request run; nothing to comment on}"
 existing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-  --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+  --jq ".[] | select(.body | startswith(\"$marker\")) | .id")
+existing=${existing%%$'\n'*}
 if [ -n "$existing" ]; then
   gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -f body="$body" --jq .html_url
 else

@@ -86,7 +86,10 @@ if [ ${#apks[@]} -eq 1 ]; then
 else
   for apk in "${apks[@]}"; do body_args+=(-F "apk=@$apk"); done
 fi
-curl_args=(-sS -w '\n%{http_code}' --max-time 360
+# The server allows itself 5 minutes to install, after the upload. Over a
+# DERP relay the upload of a large APK takes minutes of its own, so the
+# overall limit leaves room for both.
+curl_args=(-sS -w '\n%{http_code}' --connect-timeout 30 --max-time 900
   -H "X-Loupe-Agent: loupe-preview")
 [ "${LOUPE_INSECURE:-false}" = true ] && curl_args+=(-k)
 

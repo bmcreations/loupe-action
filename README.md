@@ -20,7 +20,7 @@ would hand device control to all of them.
 So the link only works in a browser that already holds loupe's cookie: Safari
 on a phone that has opened the startup link once, or the Home Screen app
 installed from it. Anyone else gets a 401. That stays true until scoped share
-links exist (roadmap item 7 in `docs/product-direction.md`).
+links exist.
 
 ## Inputs
 
