@@ -5,12 +5,17 @@
 #
 # Inputs come from the environment (action.yml maps them):
 #   LOUPE_SERVER      https://host:18456, no trailing path
-#   LOUPE_TOKEN       the server's shared token
+#   LOUPE_TOKEN       the server's shared token; when empty, read from
+#                     LOUPE_TOKEN_FILE (default ~/Library/Caches/loupe/token),
+#                     which is where a runner on loupe's own Mac finds it
 #   LOUPE_TARGET      a target id, e.g. avd:Pixel_10
 #   LOUPE_APKS        APK paths or globs, whitespace separated
 #   LOUPE_ALLOW_TEST  "true" adds ?allowTest=1 (Android Studio's testOnly builds)
 #   LOUPE_LAUNCH      "true" adds ?launch=1
 #   LOUPE_PACKAGE     optional; read from the base APK with aapt2 when empty
+#   LOUPE_CONNECT     optional host:port to dial instead of the server's, e.g.
+#                     127.0.0.1:18456; TLS is still checked against the
+#                     server's name, and the comment link keeps it
 #   LOUPE_INSECURE    "true" skips TLS verification, for a local test server
 #   LOUPE_RESULT      where to write the result JSON
 #
@@ -20,12 +25,19 @@ set -euo pipefail
 die() { echo "::error::$*" >&2; exit 2; }
 
 : "${LOUPE_SERVER:?server is required}"
-: "${LOUPE_TOKEN:?token is required}"
 : "${LOUPE_TARGET:?target is required}"
 : "${LOUPE_APKS:?apk is required}"
 result=${LOUPE_RESULT:-${RUNNER_TEMP:-/tmp}/loupe-preview.json}
 server=${LOUPE_SERVER%/}
 
+if [ -z "${LOUPE_TOKEN:-}" ]; then
+  token_file=${LOUPE_TOKEN_FILE:-$HOME/Library/Caches/loupe/token}
+  token_file=${token_file/#\~/$HOME}
+  [ -r "$token_file" ] || die "no token given and $token_file is not readable"
+  LOUPE_TOKEN=$(<"$token_file")
+  LOUPE_TOKEN=${LOUPE_TOKEN%$'\n'}
+fi
+[ -n "$LOUPE_TOKEN" ] || die "the token is empty"
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::add-mask::$LOUPE_TOKEN"
 command -v jq >/dev/null || die "jq is required"
 
@@ -92,6 +104,14 @@ fi
 curl_args=(-sS -w '\n%{http_code}' --connect-timeout 30 --max-time 900
   -H "X-Loupe-Agent: loupe-preview")
 [ "${LOUPE_INSECURE:-false}" = true ] && curl_args+=(-k)
+# --connect-to swaps only the address dialled. SNI and certificate checks
+# still use the server's name, so a runner on loupe's own Mac can use
+# loopback with the tailnet certificate verified.
+if [ -n "${LOUPE_CONNECT:-}" ]; then
+  host_port=${server#*://}; host_port=${host_port%%/*}
+  [[ $host_port == *:* ]] || host_port+=":443"
+  curl_args+=(--connect-to "$host_port:$LOUPE_CONNECT")
+fi
 
 echo "Installing ${#apks[@]} APK(s) on $LOUPE_TARGET via $server"
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)

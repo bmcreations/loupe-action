@@ -54,6 +54,9 @@ if $dry_run; then
 fi
 
 : "${GITHUB_REPOSITORY:?}" "${PR_NUMBER:?not a pull_request run; nothing to comment on}"
+# In a workflow_run job the number comes from the build's artifact, which
+# the PR's own code wrote, so it is checked before it reaches a URL.
+[[ $PR_NUMBER =~ ^[0-9]+$ ]] || { echo "::error::pr-number is not a number" >&2; exit 2; }
 existing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
   --jq ".[] | select(.body | startswith(\"$marker\")) | .id")
 existing=${existing%%$'\n'*}
