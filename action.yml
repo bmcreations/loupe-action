@@ -1,0 +1,82 @@
+name: loupe preview
+description: Install a PR's APK on a loupe target and comment a link that opens it.
+
+inputs:
+  server:
+    description: The loupe server's base URL, e.g. https://host.tailnet.ts.net:18456
+    required: true
+  token:
+    description: The server's shared token. Pass it from a secret; it is never written to the comment.
+    required: true
+  target:
+    description: The target id to install on, e.g. avd:Pixel_10. The target must be running.
+    required: true
+  apk:
+    description: APK paths or globs, whitespace separated. Several files go as one base-plus-splits install.
+    required: true
+  allow-test:
+    description: Accept an APK marked android:testOnly (adds -t).
+    default: "false"
+  launch:
+    description: Ask the server to launch the app after installing. Has no effect until the server supports ?launch=1.
+    default: "false"
+  package:
+    description: The package name for the comment. Read from the base APK with aapt2 when empty.
+    default: ""
+  comment:
+    description: Post or update the PR comment.
+    default: "true"
+  insecure:
+    description: Skip TLS verification. Only for a local test server.
+    default: "false"
+  github-token:
+    description: Token for the PR comment. Needs pull-requests write.
+    default: ${{ github.token }}
+
+outputs:
+  outcome:
+    description: ok, refused or error
+    value: ${{ steps.install.outputs.outcome }}
+  url:
+    description: The viewer link for the target
+    value: ${{ steps.install.outputs.url }}
+  package:
+    description: The installed package, when known
+    value: ${{ steps.install.outputs.package }}
+  code:
+    description: The INSTALL_FAILED_* code on a refusal
+    value: ${{ steps.install.outputs.code }}
+  took-ms:
+    description: How long the server took to install
+    value: ${{ steps.install.outputs.took-ms }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      env:
+        LOUPE_SERVER: ${{ inputs.server }}
+        LOUPE_TOKEN: ${{ inputs.token }}
+        LOUPE_TARGET: ${{ inputs.target }}
+        LOUPE_APKS: ${{ inputs.apk }}
+        LOUPE_ALLOW_TEST: ${{ inputs.allow-test }}
+        LOUPE_LAUNCH: ${{ inputs.launch }}
+        LOUPE_PACKAGE: ${{ inputs.package }}
+        LOUPE_INSECURE: ${{ inputs.insecure }}
+        LOUPE_RESULT: ${{ runner.temp }}/loupe-preview.json
+      run: bash "$GITHUB_ACTION_PATH/install.sh"
+
+    # Runs on a failed install too, so the comment stops pointing at a build
+    # that is no longer on the device.
+    - if: inputs.comment == 'true' && github.event.pull_request.number != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: bash "$GITHUB_ACTION_PATH/comment.sh" "${{ steps.install.outputs.result }}"
+
+    - if: steps.install.outputs.outcome != 'ok'
+      shell: bash
+      run: exit 1
