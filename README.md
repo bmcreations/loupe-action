@@ -26,14 +26,14 @@ links exist.
 
 | Input | Required | Default | |
 | --- | --- | --- | --- |
-| `server` | yes | | Base URL, e.g. `https://bmc-m3-max.tail69c1a2.ts.net:18456` |
+| `server` | yes | | Base URL the phone uses, e.g. `https://my-mac.example.ts.net:18456` |
 | `token` | | | The server's token, from a secret. Empty reads `token-file` |
 | `token-file` | | `~/Library/Caches/loupe/token` | Where loupe keeps its token, for a runner on the same Mac |
 | `connect-to` | | | `host:port` to dial instead, e.g. `127.0.0.1:18456`. TLS is still checked against `server`'s name |
 | `target` | yes | | Target id, e.g. `avd:Pixel_10`. Must be running |
 | `apk` | yes | | Paths or globs, whitespace separated. Two or more files go as one base-plus-splits install |
 | `allow-test` | | `false` | Accept an `android:testOnly` APK (`adb install -t`) |
-| `launch` | | `false` | Sends `?launch=1`. The server ignores it until `feat/install-launch` lands |
+| `launch` | | `false` | Sends `?launch=1`. Current loupe servers ignore it |
 | `package` | | | Package name for the comment. Read from the base APK with `aapt2` when empty |
 | `comment` | | `true` | Post or update the PR comment |
 | `insecure` | | `false` | Skip TLS verification, for a local test server only |
@@ -57,8 +57,9 @@ fails the job.
 - **Launch is not wired.** The server has no launch step yet. With
   `launch: true` the comment says the app is installed and has to be opened
   from the launcher.
-- **`bmcreations/loupe` is private.** Another repo can only `uses:` this action
-  after Settings, Actions, General, Access on this repo allows it.
+- **This repo is a mirror.** The action is developed in loupe's own
+  repository, next to the `/api/install` endpoint it calls, and copied here
+  on every change. Open issues here; pull requests are applied there.
 
 ## Reaching the server from a runner
 
@@ -181,9 +182,9 @@ jobs:
       - id: pr
         run: echo "number=$(tr -dc 0-9 < '${{ runner.temp }}/preview/pr-number' | head -c 10)" >> "$GITHUB_OUTPUT"
 
-      - uses: bmcreations/loupe/action@main
+      - uses: bmcreations/loupe-action@v1
         with:
-          server: https://bmc-m3-max.tail69c1a2.ts.net:18456
+          server: https://my-mac.example.ts.net:18456
           connect-to: 127.0.0.1:18456
           target: avd:Pixel_10
           apk: ${{ runner.temp }}/preview/*.apk
@@ -208,18 +209,19 @@ works wherever loupe is reachable from one, for example by joining the
 runner to the tailnet with `tailscale/github-action`. That needs a tailnet
 account, an OAuth client and an ACL per user, which is why it is no longer
 the default. A route that needs neither, where loupe fetches the build from
-GitHub itself, is sketched in `docs/pr-preview-pull.md`.
+GitHub itself, is planned.
 
 ## Running the scripts locally
 
 `install.sh` and `comment.sh` hold all the logic; `action.yml` only maps
-inputs to environment variables. Against a spare server:
+inputs to environment variables. From the action's directory, against a
+spare server:
 
 ```sh
-LOUPE_SERVER=https://127.0.0.1:18472 LOUPE_TOKEN=... LOUPE_INSECURE=true \
-  LOUPE_TARGET=avd:api34_emoji_check LOUPE_APKS='build/*.apk' \
-  LOUPE_RESULT=/tmp/r.json action/install.sh
-action/comment.sh --dry-run /tmp/r.json
+LOUPE_SERVER=https://127.0.0.1:18470 LOUPE_TOKEN=... LOUPE_INSECURE=true \
+  LOUPE_TARGET=avd:Pixel_10 LOUPE_APKS='build/*.apk' \
+  LOUPE_RESULT=/tmp/r.json ./install.sh
+./comment.sh --dry-run /tmp/r.json
 ```
 
 Never run `install.sh` under `set -x`: it would print the token. The token
