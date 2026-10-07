@@ -37,21 +37,19 @@ body=$(jq -r --arg marker "$marker" --arg sha "${sha:0:7}" '
     (if .outcome == "ok" then "| Installed | \(.startedAt)\(secs), \(.apks) APK(s) |"
      else "| Attempted | \(.startedAt), \(.apks) APK(s) |" end),
     "",
-    # A server older than ?launch=1 sends no verdict at all, and one that
-    # read a different package from the APK than it was given launches nothing.
+    # A server older than ?launch=1 sends no verdict at all. A package it
+    # could not name, or that did not match the APK, comes back as a launch
+    # error that already starts with "not launched: ".
     (if .outcome == "ok" and .launchRequested then
        if .launch == null then
-         "Installed but not launched: " +
-         (if .packageError != "" then .packageError
-          else "this loupe server does not launch on install" end) +
-         ". Open it from the launcher.\n"
+         "Installed but not launched: this loupe server does not launch on install. Open it from the launcher.\n"
        elif .launch.ok then
          "Launched" + (if (.launch.activity // "") != "" then " `\(.launch.activity)`" else "" end) +
          " in \(.launch.tookMs / 100 | round / 10)s.\n"
        else
          "Installed but not launched: " +
          (if (.launch.code // "") != "" then "`\(.launch.code)`: " else "" end) +
-         "\(.launch.error // "no reason given"). Open it from the launcher.\n"
+         "\(.launch.error // "no reason given" | ltrimstr("not launched: ")). Open it from the launcher.\n"
        end
      else empty end),
     (if .outcome == "ok" then

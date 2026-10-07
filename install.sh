@@ -12,7 +12,8 @@
 #   LOUPE_APKS        APK paths or globs, whitespace separated
 #   LOUPE_ALLOW_TEST  "true" adds ?allowTest=1 (Android Studio's testOnly builds)
 #   LOUPE_LAUNCH      "true" adds ?launch=1
-#   LOUPE_PACKAGE     optional; read from the base APK with aapt2 when empty
+#   LOUPE_PACKAGE     optional, sent as ?package=; read from the base APK with
+#                     aapt2 when empty
 #   LOUPE_CONNECT     optional host:port to dial instead of the server's, e.g.
 #                     127.0.0.1:18456; TLS is still checked against the
 #                     server's name, and the comment link keeps it
@@ -58,9 +59,9 @@ shopt -u nullglob
 [ ${#apks[@]} -gt 0 ] || die "apk names no files"
 [ ${#apks[@]} -le 64 ] || die "${#apks[@]} APKs; the server takes at most 64 in one install"
 
-# The package and version are for the comment only. The install response
-# does not name the package, so it comes from the APK: the base is the one
-# whose badging has no split='...'.
+# The package goes to the server as ?package=, which it uses to launch when
+# its own aapt2 cannot read the APK, and checks against the APK when it can.
+# Read here from the base APK, the one whose badging has no split='...'.
 find_aapt2() {
   local sdk
   for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk" "$HOME/Android/Sdk"; do
@@ -89,6 +90,7 @@ query="target=$(jq -rn --arg v "$LOUPE_TARGET" '$v|@uri')"
 # The launch verdict comes back nested in the install's response, and the
 # status stays the install's whatever it says.
 [ "${LOUPE_LAUNCH:-false}" = true ] && query+="&launch=1"
+[ -z "$package" ] || query+="&package=$(jq -rn --arg v "$package" '$v|@uri')"
 
 # One APK goes as the raw body; base plus splits as one multipart request,
 # which the server hands to `adb install-multiple`.
@@ -138,6 +140,11 @@ esac
 error=$(jq -r '.error // empty' <<<"$resp" 2>/dev/null || true)
 [ -n "$error" ] || [ "$outcome" != error ] || error=${raw:-"no response (HTTP $status)"}
 error=${error%$'\n'}
+# The server's reading of the package is the one it launched, or refused to
+# launch for not matching, so it is the one the comment shows. It also
+# names the package for a runner without aapt2.
+srv_package=$(jq -r '.package // empty' <<<"$resp" 2>/dev/null || true)
+[ -z "$srv_package" ] || package=$srv_package
 
 jq -n \
   --arg outcome "$outcome" --arg status "$status" --arg error "$error" \
@@ -161,7 +168,9 @@ case "$outcome" in
     jq -r 'select(.launchRequested) | .launch |
       if . == null then "Not launched: the server sent no launch verdict"
       elif .ok then "Launched in \(.tookMs)ms"
-      else "::warning::not launched: \(.code) \(.error)" end' "$result"
+      else "::warning::not launched: " +
+        (if (.code // "") != "" then "\(.code): " else "" end) +
+        (.error // "no reason given" | ltrimstr("not launched: ")) end' "$result"
     ;;
   refused) echo "::error::$LOUPE_TARGET refused the install: $(jq -r '.code + " " + .reason' "$result")" ;;
   *) echo "::error::install failed (HTTP $status): $error" ;;

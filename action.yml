@@ -27,7 +27,7 @@ inputs:
     description: Ask the server to launch the app after installing. The comment says whether it did.
     default: "false"
   package:
-    description: The package name for the comment. Read from the base APK with aapt2 when empty.
+    description: The package name, sent as ?package= and shown in the comment. Read from the base APK with aapt2 when empty; the server's own reading wins if they differ, and nothing is launched.
     default: ""
   comment:
     description: Post or update the PR comment.

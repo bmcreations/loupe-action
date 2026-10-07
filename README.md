@@ -34,7 +34,7 @@ links exist.
 | `apk` | yes | | Paths or globs, whitespace separated. Two or more files go as one base-plus-splits install |
 | `allow-test` | | `false` | Accept an `android:testOnly` APK (`adb install -t`) |
 | `launch` | | `false` | Sends `?launch=1`, and the comment says whether the app opened |
-| `package` | | | Package name for the comment. Read from the base APK with `aapt2` when empty |
+| `package` | | | Package name, sent as `?package=` and shown in the comment. Read from the base APK with `aapt2` when empty. If the server reads a different one, nothing is launched |
 | `comment` | | `true` | Post or update the PR comment |
 | `insecure` | | `false` | Skip TLS verification, for a local test server only |
 | `pr-number` | | the `pull_request` event's | The PR to comment on. Set it in a `workflow_run` job |
