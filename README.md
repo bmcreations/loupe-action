@@ -33,7 +33,7 @@ links exist.
 | `target` | yes | | Target id, e.g. `avd:Pixel_10`. Must be running |
 | `apk` | yes | | Paths or globs, whitespace separated. Two or more files go as one base-plus-splits install |
 | `allow-test` | | `false` | Accept an `android:testOnly` APK (`adb install -t`) |
-| `launch` | | `false` | Sends `?launch=1`. Current loupe servers ignore it |
+| `launch` | | `false` | Sends `?launch=1`, and the comment says whether the app opened |
 | `package` | | | Package name for the comment. Read from the base APK with `aapt2` when empty |
 | `comment` | | `true` | Post or update the PR comment |
 | `insecure` | | `false` | Skip TLS verification, for a local test server only |
@@ -54,9 +54,9 @@ fails the job.
 - **The target must already be running.** `/api/install` answers 502 for a
   shut-down AVD ("open it in the viewer to boot it"), and nothing in the API
   boots one without a viewer session. The comment shows that message.
-- **Launch is not wired.** The server has no launch step yet. With
-  `launch: true` the comment says the app is installed and has to be opened
-  from the launcher.
+- **A failed launch does not fail the job.** The APK is installed whatever
+  the launch says, so a launch refused with `humanHeld` (someone is using the
+  target) or `noLaunchActivity` shows in the comment and as a warning only.
 - **This repo is a mirror.** The action is developed in loupe's own
   repository, next to the `/api/install` endpoint it calls, and copied here
   on every change. Open issues here; pull requests are applied there.

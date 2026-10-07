@@ -24,7 +24,7 @@ inputs:
     description: Accept an APK marked android:testOnly (adds -t).
     default: "false"
   launch:
-    description: Ask the server to launch the app after installing. Has no effect until the server supports ?launch=1.
+    description: Ask the server to launch the app after installing. The comment says whether it did.
     default: "false"
   package:
     description: The package name for the comment. Read from the base APK with aapt2 when empty.

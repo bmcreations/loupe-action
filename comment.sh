@@ -37,9 +37,22 @@ body=$(jq -r --arg marker "$marker" --arg sha "${sha:0:7}" '
     (if .outcome == "ok" then "| Installed | \(.startedAt)\(secs), \(.apks) APK(s) |"
      else "| Attempted | \(.startedAt), \(.apks) APK(s) |" end),
     "",
-    # TODO(feat/install-launch): say it launched once ?launch=1 reports that.
+    # A server older than ?launch=1 sends no verdict at all, and one that
+    # read a different package from the APK than it was given launches nothing.
     (if .outcome == "ok" and .launchRequested then
-       "The app is installed but not launched yet: the server does not launch on install. Open it from the launcher.\n"
+       if .launch == null then
+         "Installed but not launched: " +
+         (if .packageError != "" then .packageError
+          else "this loupe server does not launch on install" end) +
+         ". Open it from the launcher.\n"
+       elif .launch.ok then
+         "Launched" + (if (.launch.activity // "") != "" then " `\(.launch.activity)`" else "" end) +
+         " in \(.launch.tookMs / 100 | round / 10)s.\n"
+       else
+         "Installed but not launched: " +
+         (if (.launch.code // "") != "" then "`\(.launch.code)`: " else "" end) +
+         "\(.launch.error // "no reason given"). Open it from the launcher.\n"
+       end
      else empty end),
     (if .outcome == "ok" then
        "The link has no token in it. It opens for anyone who has already signed in to this loupe server in the same browser or Home Screen app; otherwise it answers 401."

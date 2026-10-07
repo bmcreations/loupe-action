@@ -86,8 +86,8 @@ fi
 
 query="target=$(jq -rn --arg v "$LOUPE_TARGET" '$v|@uri')"
 [ "${LOUPE_ALLOW_TEST:-false}" = true ] && query+="&allowTest=1"
-# TODO(feat/install-launch): ?launch=1 is ignored until that branch lands on
-# the server; read its launch verdict from the response once it does.
+# The launch verdict comes back nested in the install's response, and the
+# status stays the install's whatever it says.
 [ "${LOUPE_LAUNCH:-false}" = true ] && query+="&launch=1"
 
 # One APK goes as the raw body; base plus splits as one multipart request,
@@ -152,10 +152,17 @@ jq -n \
     tookMs: ($resp.tookMs // null), bytes: ($resp.bytes // null), apks: $apks,
     server: $server, target: $target, url: $url,
     package: $package, version: $version, startedAt: $started,
-    launchRequested: ($launch == "true")}' >"$result"
+    launchRequested: ($launch == "true"), launch: ($resp.launch // null),
+    packageError: ($resp.packageError // "")}' >"$result"
 
 case "$outcome" in
-  ok) echo "Installed in $(jq -r .tookMs "$result")ms" ;;
+  ok)
+    echo "Installed in $(jq -r .tookMs "$result")ms"
+    jq -r 'select(.launchRequested) | .launch |
+      if . == null then "Not launched: the server sent no launch verdict"
+      elif .ok then "Launched in \(.tookMs)ms"
+      else "::warning::not launched: \(.code) \(.error)" end' "$result"
+    ;;
   refused) echo "::error::$LOUPE_TARGET refused the install: $(jq -r '.code + " " + .reason' "$result")" ;;
   *) echo "::error::install failed (HTTP $status): $error" ;;
 esac
